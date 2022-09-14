@@ -23,6 +23,9 @@
 *  @license   http://opensource.org/licenses/afl-3.0.php  Academic Free License (AFL 3.0)
 *  International Registered Trademark & Property of PrestaShop SA
 */
+use PrestaShop\PrestaShop\Core\Grid\Column\Type\DataColumn;
+use PrestaShop\PrestaShop\Core\Grid\Filter\Filter;
+use Symfony\Component\Form\Extension\Core\Type\TextType;
 
 if (!defined('_PS_VERSION_')) {
     exit;
@@ -59,18 +62,15 @@ class Additionnalorderfields extends Module
      */
     public function install()
     {
-        Configuration::updateValue('ADDITIONNALORDERFIELDS_LIVE_MODE', false);
 
         return parent::install() &&
-            $this->registerHook('header') &&
-            $this->registerHook('backOfficeHeader') &&
+            $this->registerHook('actionOrderGridDefinitionModifier') &&
+            $this->registerHook('actionOrderGridQueryBuilderModifier') &&
             $this->registerHook('actionAdminControllerSetMedia');
     }
 
     public function uninstall()
     {
-        Configuration::deleteByName('ADDITIONNALORDERFIELDS_LIVE_MODE');
-
         return parent::uninstall();
     }
 
@@ -197,28 +197,92 @@ class Additionnalorderfields extends Module
         }
     }
 
-    /**
-    * Add the CSS & JavaScript files you want to be loaded in the BO.
-    */
-    public function hookBackOfficeHeader()
-    {
-        if (Tools::getValue('module_name') == $this->name) {
-            $this->context->controller->addJS($this->_path.'views/js/back.js');
-            $this->context->controller->addCSS($this->_path.'views/css/back.css');
-        }
-    }
-
-    /**
-     * Add the CSS & JavaScript files you want to be added on the FO.
-     */
-    public function hookHeader()
-    {
-        $this->context->controller->addJS($this->_path.'/views/js/front.js');
-        $this->context->controller->addCSS($this->_path.'/views/css/front.css');
-    }
-
+    
     public function hookActionAdminControllerSetMedia()
     {
         /* Place your code here. */
     }
+    public function hookActionOrderGridDefinitionModifier(array $params){
+        /** @var GridDefinitionInterface $definition */
+        $definition = $params['definition'];
+
+        /** @var FilterCollection $filters */
+        $filters = $definition->getFilters();
+
+        /** @var ColumnCollection */
+        $columns = $definition->getColumns();
+
+        $columns
+            ->addAfter('id_order',
+                (new DataColumn('carrier'))
+                    ->setName($this->l('carrier'))
+                    ->setOptions([
+                        'field' => 'carrier_name',
+                    ])
+            );
+        $filters
+            ->add((new Filter('carrier', TextType::class))
+                ->setTypeOptions([
+                    'required' => false,
+                    'attr' => [
+                        'placeholder' => $this->trans('Search carrier', [], 'Admin.Actions'),
+                    ],
+                ])
+                ->setAssociatedColumn('carrier'));
+        $columns
+            ->addAfter('carrier',
+                (new DataColumn('reduction'))
+                    ->setName($this->l('Reduction'))
+                    ->setOptions([
+                        'field' => 'reduction_name',
+                    ])
+            );
+        $filters
+            ->add((new Filter('reduction', TextType::class))
+                ->setTypeOptions([
+                    'required' => false,
+                    'attr' => [
+                        'placeholder' => $this->trans('Search reduction name', [], 'Admin.Actions'),
+                    ],
+                ])
+                ->setAssociatedColumn('reduction'));
+    }
+    public function hookActionOrderGridQueryBuilderModifier(array $params){
+   
+        $searchQueryBuilder = $params['search_query_builder'];
+        /** @var CustomerFilters $searchCriteria */
+        $searchCriteria = $params['search_criteria'];
+        $orderBy = $searchCriteria->getOrderBy();
+        if($searchCriteria->getOrderBy() == 'carrier'){
+            $orderBy = 'ca.name';
+
+        } elseif($searchCriteria->getOrderBy() == 'reduction'){
+            $orderby = 'cr.description';
+        } 
+        $searchQueryBuilder->orderBy($orderBy, $searchCriteria->getOrderWay());
+        foreach ($searchCriteria->getFilters() as $filterName => $filterValue) {
+            if ('carrier' === $filterName && $filterValue) {
+                $searchQueryBuilder
+                    ->where('ca.`name` = \'' . $filterValue . '\'')
+                    ->orWhere('ca.`name` LIKE "%'.$filterValue.'%"');
+                $searchQueryBuilder->setParameter(':s', $filterValue);
+            } elseif('reduction' === $filterName && $filterValue) {
+                $searchQueryBuilder
+                    ->where('cr.`name` = \'' . $filterValue . '\'')
+                    ->orWhere('cr.`name` LIKE "%'.$filterValue.'%"');
+                $searchQueryBuilder->setParameter(':s', $filterValue);
+            }
+        }
+
+
+        $searchQueryBuilder->addSelect('ca.name as carrier_name');
+        $searchQueryBuilder->addSelect('cr.name as reduction_name');
+        $searchQueryBuilder->leftJoin('o', _DB_PREFIX_. 'carrier', 'ca', 'o.id_carrier = ca.id_carrier');
+        $searchQueryBuilder->leftJoin('o', _DB_PREFIX_. 'order_cart_rule', 'cr', 'o.id_order = cr.id_order');
+        //$searchQueryBuilder->leftJoin( _DB_PREFIX_ . 'carrier c on c.id_carrier = o.id_carrier');
+          /* dump($params);
+        die;*/
+    }
+
+
 }
