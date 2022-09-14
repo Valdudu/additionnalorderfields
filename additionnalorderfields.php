@@ -257,7 +257,7 @@ class Additionnalorderfields extends Module
             $orderBy = 'ca.name';
 
         } elseif($searchCriteria->getOrderBy() == 'reduction'){
-            $orderby = 'cr.description';
+            $orderBy = 'cr.description';
         } 
         $searchQueryBuilder->orderBy($orderBy, $searchCriteria->getOrderWay());
         foreach ($searchCriteria->getFilters() as $filterName => $filterValue) {
