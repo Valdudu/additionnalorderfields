@@ -263,25 +263,17 @@ class Additionnalorderfields extends Module
         foreach ($searchCriteria->getFilters() as $filterName => $filterValue) {
             if ('carrier' === $filterName && $filterValue) {
                 $searchQueryBuilder
-                    ->where('ca.`name` = \'' . $filterValue . '\'')
-                    ->orWhere('ca.`name` LIKE "%'.$filterValue.'%"');
-                $searchQueryBuilder->setParameter(':s', $filterValue);
+                    ->andWhere('(ca.`name` = \'' . $filterValue . '\' or ca.`name` LIKE "%' . $filterValue . '%")');
             } elseif('reduction' === $filterName && $filterValue) {
                 $searchQueryBuilder
-                    ->where('cr.`name` = \'' . $filterValue . '\'')
-                    ->orWhere('cr.`name` LIKE "%'.$filterValue.'%"');
-                $searchQueryBuilder->setParameter(':s', $filterValue);
+                    ->andWhere('(cr.`name` = \'' . $filterValue . '\' or cr.`name` LIKE "%'.$filterValue.'%")');
             }
         }
-
-
         $searchQueryBuilder->addSelect('ca.name as carrier_name');
         $searchQueryBuilder->addSelect('cr.name as reduction_name');
         $searchQueryBuilder->leftJoin('o', _DB_PREFIX_. 'carrier', 'ca', 'o.id_carrier = ca.id_carrier');
         $searchQueryBuilder->leftJoin('o', _DB_PREFIX_. 'order_cart_rule', 'cr', 'o.id_order = cr.id_order');
-        //$searchQueryBuilder->leftJoin( _DB_PREFIX_ . 'carrier c on c.id_carrier = o.id_carrier');
-          /* dump($params);
-        die;*/
+        $searchQueryBuilder->andWhere('o.current_state != 8');
     }
 
 
